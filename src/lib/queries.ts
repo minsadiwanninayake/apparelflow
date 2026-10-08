@@ -112,3 +112,73 @@ export async function getPendingOrders() {
 }
 
 export type PendingOrder = Awaited<ReturnType<typeof getPendingOrders>>[number];
+
+/* ---------------- Sewing ---------------- */
+
+export type AuditVariance = {
+  componentId: number;
+  componentName: string;
+  expected: number;
+  actual: number;
+  variance: number;
+  status: "GREEN" | "YELLOW" | "RED";
+};
+
+/**
+ * Query isolation: the status is a fixed value chosen on the server.
+ * It is NEVER read from the URL or request body, so unapproved orders
+ * cannot leak to the Sewing Supervisor.
+ */
+async function getOrdersForSewing(status: "VERIFIED" | "SEWING_IN_PROGRESS") {
+  const orders = await prisma.cuttingOrder.findMany({
+    where: { status },
+    orderBy: { updatedAt: "asc" },
+    include: {
+      recipe: { select: { recipeCode: true, name: true, wastageCap: true } },
+      logs: {
+        where: { decision: "APPROVED" },
+        orderBy: { timestamp: "desc" },
+        take: 1,
+        include: { verifier: { select: { fullName: true } } },
+      },
+    },
+  });
+
+  return orders.map((o) => {
+    const log = o.logs[0];
+    return {
+      id: o.id,
+      orderNo: o.orderNo,
+      status: o.status,
+      targetQty: o.targetQty,
+      fabricRollId: o.fabricRollId,
+      actualFabricYds: Number(o.actualFabricYds),
+      recipe: {
+        recipeCode: o.recipe.recipeCode,
+        name: o.recipe.name,
+        wastageCap: Number(o.recipe.wastageCap),
+      },
+      approval: log
+        ? {
+            verifierId: log.verifierId,
+            verifierName: log.verifier.fullName,
+            at: log.timestamp.toISOString(),
+            wastagePct: log.wastagePct === null ? null : Number(log.wastagePct),
+            variances: (Array.isArray(log.variances) ? log.variances : []) as unknown as AuditVariance[],
+          }
+        : null,
+    };
+  });
+}
+
+/** Sewing Queue — VERIFIED only (brief section 9: query isolation) */
+export function getSewingQueue() {
+  return getOrdersForSewing("VERIFIED");
+}
+
+/** Batches already started on the assembly line */
+export function getSewingInProgress() {
+  return getOrdersForSewing("SEWING_IN_PROGRESS");
+}
+
+export type SewingOrder = Awaited<ReturnType<typeof getSewingQueue>>[number];
