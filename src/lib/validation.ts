@@ -51,6 +51,8 @@ export function yards(label: string, max: number) {
   });
 }
 
+/* ---------------- Cutting orders ---------------- */
+
 export const CreateOrderSchema = z.object({
   recipeId: wholeNumber("Recipe", 1, 1_000_000),
   targetQty: wholeNumber("Target quantity", 1, 10_000),
@@ -66,6 +68,35 @@ export const CreateOrderSchema = z.object({
 });
 
 export type CreateOrderField = keyof z.input<typeof CreateOrderSchema>;
+
+/* ---------------- Verification ---------------- */
+
+export const MAX_PIECE_COUNT = 1_000_000;
+
+const CountEntry = z.object({
+  componentId: wholeNumber("Component", 1, 1_000_000_000),
+  actualQty: wholeNumber("Counted pieces", 0, MAX_PIECE_COUNT),
+});
+
+export const ApproveSchema = z.object({
+  counts: z.array(CountEntry).min(1, "Counts are required for every component"),
+});
+
+export const MIN_REJECTION_NOTE = 10;
+
+export const RejectSchema = z.object({
+  rejectionNote: z.preprocess(
+    (v) => (typeof v === "string" ? v : ""),
+    z
+      .string()
+      .trim()
+      .min(MIN_REJECTION_NOTE, `Rejection reason must be at least ${MIN_REJECTION_NOTE} characters`)
+      .max(1000, "Rejection reason must be at most 1000 characters")
+  ),
+  counts: z.array(CountEntry).optional(),
+});
+
+/* ---------------- Helpers ---------------- */
 
 /** Turns a Zod error into { fieldName: "first error message" } */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

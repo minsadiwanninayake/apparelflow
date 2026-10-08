@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 
+/* ---------------- Recipes ---------------- */
+
 export async function getRecipes() {
   const recipes = await prisma.recipe.findMany({
     orderBy: { recipeCode: "asc" },
@@ -22,6 +24,8 @@ export async function getRecipes() {
 }
 
 export type RecipeDTO = Awaited<ReturnType<typeof getRecipes>>[number];
+
+/* ---------------- Supervisor ---------------- */
 
 export async function getSupervisorOrders() {
   const orders = await prisma.cuttingOrder.findMany({
@@ -66,3 +70,45 @@ export async function getSupervisorOrders() {
 }
 
 export type SupervisorOrder = Awaited<ReturnType<typeof getSupervisorOrders>>[number];
+
+/* ---------------- Verifier ---------------- */
+
+export async function getPendingOrders() {
+  const orders = await prisma.cuttingOrder.findMany({
+    where: { status: "PENDING_VERIFICATION" },
+    orderBy: { updatedAt: "asc" }, // oldest submitted first
+    include: {
+      recipe: true,
+      createdBy: { select: { fullName: true } },
+      items: {
+        orderBy: { componentId: "asc" },
+        include: { component: { select: { componentName: true, piecesPerGarment: true } } },
+      },
+    },
+  });
+
+  return orders.map((o) => ({
+    id: o.id,
+    orderNo: o.orderNo,
+    targetQty: o.targetQty,
+    fabricRollId: o.fabricRollId,
+    actualFabricYds: Number(o.actualFabricYds),
+    submittedAt: o.updatedAt.toISOString(),
+    createdBy: o.createdBy.fullName,
+    recipe: {
+      recipeCode: o.recipe.recipeCode,
+      name: o.recipe.name,
+      stdFabricYards: Number(o.recipe.stdFabricYards),
+      wastageCap: Number(o.recipe.wastageCap),
+    },
+    items: o.items.map((i) => ({
+      id: i.id,
+      componentId: i.componentId,
+      componentName: i.component.componentName,
+      piecesPerGarment: i.component.piecesPerGarment,
+      expectedQty: i.expectedQty,
+    })),
+  }));
+}
+
+export type PendingOrder = Awaited<ReturnType<typeof getPendingOrders>>[number];
