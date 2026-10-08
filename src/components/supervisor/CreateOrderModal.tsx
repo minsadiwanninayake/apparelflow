@@ -114,7 +114,10 @@ export function CreateOrderModal({ recipes }: { recipes: RecipeDTO[] }) {
           + New Cutting Order
         </button>
         {successMessage && (
-          <p role="status" className="rounded-md border border-green-400 bg-green-50 px-3 py-2 text-sm text-green-900">
+          <p
+            role="status"
+            className="max-w-sm rounded-md border border-green-400 bg-green-50 px-3 py-2 text-right text-sm text-green-900"
+          >
             {successMessage}
           </p>
         )}
