@@ -229,7 +229,7 @@ function CountingPanel({
                       type="text"
                       inputMode="numeric"
                       autoComplete="off"
-                      placeholder="0"
+                      placeholder="Count"
                       value={counts[r.componentId] ?? ""}
                       onChange={(e) => setCounts((c) => ({ ...c, [r.componentId]: e.target.value }))}
                       aria-invalid={isInvalid}
