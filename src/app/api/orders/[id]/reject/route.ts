@@ -6,6 +6,9 @@ import { evaluateCounts, wastagePct } from "@/lib/domain";
 
 class StateConflictError extends Error {}
 
+// Neon is far from Sri Lanka (~1s per query), so allow more time than Prisma's 5s default
+const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 /**
  * Reject a batch with a mandatory reason. It returns to the Cutting Supervisor
  * for re-cutting. Any counts already entered are saved in the audit log.
@@ -118,12 +121,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           })),
         },
       });
-    });
+    }, TX_OPTIONS);
   } catch (e) {
     if (e instanceof StateConflictError) {
       return NextResponse.json({ error: "Order was already processed" }, { status: 409 });
     }
-    throw e;
+    console.error("Reject transaction failed:", e);
+    return NextResponse.json(
+      { error: "Could not save the rejection. Nothing was changed — please try again." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true, status: "REJECTED" });

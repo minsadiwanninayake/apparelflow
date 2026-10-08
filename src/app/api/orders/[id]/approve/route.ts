@@ -6,6 +6,9 @@ import { evaluateCounts, wastagePct, type Light } from "@/lib/domain";
 
 class StateConflictError extends Error {}
 
+// Neon is far from Sri Lanka (~1s per query), so allow more time than Prisma's 5s default
+const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 /**
  * Approve a batch. Order of checks:
  *   401 not logged in  ->  403 wrong role  ->  400 bad id  ->  422 bad input
@@ -134,12 +137,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           })),
         },
       });
-    });
+    }, TX_OPTIONS);
   } catch (e) {
     if (e instanceof StateConflictError) {
       return NextResponse.json({ error: "Order was already processed" }, { status: 409 });
     }
-    throw e;
+    console.error("Approve transaction failed:", e);
+    return NextResponse.json(
+      { error: "Could not save the approval. Nothing was changed — please try again." },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true, status: "VERIFIED", wastagePct: wastage, results });
